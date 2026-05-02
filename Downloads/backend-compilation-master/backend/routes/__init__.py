@@ -1,0 +1,14 @@
+from .zone_routes import router as zone_router
+from .capteur_routes import router as capteur_router
+from .mesure_routes import router as mesure_router
+from .citoyen_routes import router as citoyen_router
+from .technicien_routes import router as technicien_router
+from .proprietaire_routes import router as proprietaire_router
+from .intervention_routes import router as intervention_router
+from .consultation_routes import router as consultation_router
+from .vehicule_routes import router as vehicule_router
+from .trajet_routes import router as trajet_router
+from .compilateur import router as nl_router
+from .automates import router as auto_router
+from .ia import router as ia_router
+from .kpis import router as kpis_router

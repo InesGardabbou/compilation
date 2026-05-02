@@ -1,0 +1,24 @@
+# Node.js
+node_modules/
+frontend/node_modules/
+dist/
+.eslintcache
+
+# Python
+venv/
+.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
