@@ -21,5 +21,6 @@ export const getDashboardKPIs = () => api.get('/kpis/dashboard');
 export const generateAIReport = (type = 'global') => api.post('/ia/rapport', { type });
 export const getAISuggestions = () => api.get('/ia/suggestions');
 export const chatWithAI = (message) => api.post('/ia/chat', { message });
+export const generatePDFReport = (type = 'global') => api.post('/ia/rapport/pdf', { type }, { responseType: 'blob' } );
 
 export const nlQuery = (query) => api.post('/nl/query', { query });

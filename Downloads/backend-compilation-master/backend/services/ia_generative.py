@@ -57,43 +57,86 @@ def _query(sql: str, params: tuple = ()) -> list[dict]:
     except Exception as e:
         print(f"  ✗ Erreur DB : {e}"); return []
 
-def _charger_donnees() -> dict:
-    return {
-        "capteurs":      _query("SELECT * FROM capteurs"),
-        "mesures":       _query("""
-            SELECT time_bucket('1 hour', m.timestamp) AS bucket,
-                   c.nom AS nom_capteur, z.nom_zone,
-                   AVG(m.pollution) AS pollution, AVG(m.temperature) AS temperature,
-                   AVG(m.humidite) AS humidite, AVG(m.bruit) AS bruit, COUNT(*) AS nb_mesures
-            FROM mesures m
-            JOIN capteurs c ON m.id_capteur = c.id_capteur
-            JOIN zones z    ON c.id_zone    = z.id_zone
-            WHERE m.timestamp > NOW() - INTERVAL '7 days'
-            GROUP BY bucket, c.nom, z.nom_zone ORDER BY bucket DESC
-        """),
-        "mesures_recentes": _query("""
-            SELECT DISTINCT ON (id_capteur) id_capteur, timestamp, pollution, temperature, humidite, bruit
-            FROM mesures ORDER BY id_capteur, timestamp DESC
-        """),
-        "evolution_pollution": _query("""
-            SELECT time_bucket('3 hours', m.timestamp) AS bucket, z.nom_zone,
-                   ROUND(AVG(m.pollution)::NUMERIC,2) AS pollution_moy,
-                   ROUND(MAX(m.pollution)::NUMERIC,2) AS pollution_max,
-                   ROUND(MIN(m.pollution)::NUMERIC,2) AS pollution_min
-            FROM mesures m
-            JOIN capteurs c ON m.id_capteur = c.id_capteur
-            JOIN zones z    ON c.id_zone    = z.id_zone
-            WHERE m.timestamp > NOW() - INTERVAL '24 hours'
-            GROUP BY bucket, z.nom_zone ORDER BY bucket DESC, pollution_moy DESC
-        """),
-        "zones":         _query("SELECT * FROM zones"),
-        "citoyens":      _query("SELECT * FROM citoyens"),
-        "interventions": _query("SELECT * FROM interventions"),
-        "techniciens":   _query("SELECT * FROM techniciens"),
-        "vehicules":     _query("SELECT * FROM vehicules"),
-        "trajets":       _query("SELECT * FROM trajets"),
-    }
+"""
+PATCH FINAL pour services/ia_generative.py
+===========================================
+Schéma réel découvert :
 
+  mesures  : id_mesure, timestamp, pollution, temperature, humidite, id_zone
+  capteurs : id_capteur, nom, type_capteur, statut, taux_erreur,
+             date_installation, fabricant, localisation_gps,
+             description, unite, id_zone
+  zones    : id_zone, nom_zone, ...
+
+  ➜ mesures et capteurs sont liés via id_zone (pas de FK directe)
+  ➜ pas de colonne 'bruit' dans mesures
+  ➜ TimescaleDB absent → pas de time_bucket(), on utilise date_trunc()
+
+Remplace _charger_donnees() dans services/ia_generative.py par ce bloc.
+"""
+
+
+def _charger_donnees() -> dict:
+
+    # ── Mesures agrégées par heure + zone (7 jours) ──────────
+    # mesures.id_zone = capteurs.id_zone = zones.id_zone
+    sql_mesures = """
+        SELECT
+            date_trunc('hour', m.timestamp)        AS bucket,
+            z.nom_zone,
+            ROUND(AVG(m.pollution)::NUMERIC, 2)    AS pollution,
+            ROUND(AVG(m.temperature)::NUMERIC, 2)  AS temperature,
+            ROUND(AVG(m.humidite)::NUMERIC, 2)     AS humidite,
+            COUNT(*)                                AS nb_mesures
+        FROM mesures m
+        JOIN zones z ON m.id_zone = z.id_zone
+        WHERE m.timestamp > NOW() - INTERVAL '7 days'
+        GROUP BY bucket, z.nom_zone
+        ORDER BY bucket DESC
+    """
+
+    # ── Mesures récentes : dernière mesure par zone ───────────
+    sql_recentes = """
+        SELECT DISTINCT ON (m.id_zone)
+               m.id_zone,
+               m.id_zone        AS id_capteur,
+               m.timestamp,
+               m.pollution,
+               m.temperature,
+               m.humidite
+        FROM mesures m
+        ORDER BY m.id_zone, m.timestamp DESC
+    """
+
+    # ── Évolution pollution 24h par tranche de 3h ────────────
+    sql_evolution = """
+        SELECT
+            date_trunc('hour', m.timestamp)
+                - (EXTRACT(HOUR FROM m.timestamp)::INT % 3) * INTERVAL '1 hour'
+                                                            AS bucket,
+            z.nom_zone,
+            ROUND(AVG(m.pollution)::NUMERIC, 2)             AS pollution_moy,
+            ROUND(MAX(m.pollution)::NUMERIC, 2)             AS pollution_max,
+            ROUND(MIN(m.pollution)::NUMERIC, 2)             AS pollution_min
+        FROM mesures m
+        JOIN zones z ON m.id_zone = z.id_zone
+        WHERE m.timestamp > NOW() - INTERVAL '24 hours'
+        GROUP BY bucket, z.nom_zone
+        ORDER BY bucket DESC, pollution_moy DESC
+    """
+
+    return {
+        "capteurs":            _query("SELECT * FROM capteurs"),
+        "mesures":             _query(sql_mesures),
+        "mesures_recentes":    _query(sql_recentes),
+        "evolution_pollution": _query(sql_evolution),
+        "zones":               _query("SELECT * FROM zones"),
+        "citoyens":            _query("SELECT * FROM citoyens"),
+        "interventions":       _query("SELECT * FROM interventions"),
+        "techniciens":         _query("SELECT * FROM techniciens"),
+        "vehicules":           _query("SELECT * FROM vehicules"),
+        "trajets":             _query("SELECT * FROM trajets"),
+    }
 
 # ══════════════════════════════════════════════════════════════
 #  UTILITAIRES

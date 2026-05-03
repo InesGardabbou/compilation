@@ -6,6 +6,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from websocket.manager import manager
 import threading
 from database.listener import start_listener
+from routes.ia_pdf_route import router as ia_pdf_router
 
 from routes import *   # 🔥 UNE SEULE LIGNE (important)
 
@@ -55,6 +56,7 @@ app.include_router(nl_router)
 app.include_router(auto_router)
 app.include_router(ia_router)
 app.include_router(kpis_router)
+app.include_router(ia_pdf_router)
 
 # ROOT
 @app.get("/")

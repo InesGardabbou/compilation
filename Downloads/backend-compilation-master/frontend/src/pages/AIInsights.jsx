@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { Brain, Sparkles, FileText, Download, Zap, MessageSquare, Send, Bot, User } from 'lucide-react';
 import GlassCard from '../components/ui/GlassCard';
 import { motion } from 'framer-motion';
-import { generateAIReport, getAISuggestions, chatWithAI } from '../services/api';
+
+import { generateAIReport, getAISuggestions, chatWithAI,generatePDFReport  } from '../services/api';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -18,20 +19,26 @@ const AIInsights = () => {
   const reportRef = useRef(null);
 
   const downloadPDF = async () => {
-    if (!reportRef.current) return;
-    try {
-      const canvas = await html2canvas(reportRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save('neo-sousse-report.pdf');
-    } catch (error) {
-      console.error("Error generating PDF", error);
-    }
-  };
+  try {
+    const response = await generatePDFReport('global');
+
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `neo-sousse-report-${Date.now()}.pdf`;
+
+    document.body.appendChild(link);
+    link.click();
+
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+    console.error("Erreur téléchargement PDF:", error);
+  }
+};
 
   const handleChat = async (e) => {
     e.preventDefault();
@@ -129,9 +136,13 @@ const AIInsights = () => {
                       <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">{report.title}</h2>
                       <p className="text-neo-primary font-mono text-sm mt-1">{report.date}</p>
                     </div>
-                    <button onClick={downloadPDF} className="p-2 bg-gray-800 rounded hover:bg-neo-primary hover:text-white transition-colors text-gray-300 shadow-md" title="Télécharger PDF">
-                      <Download className="w-5 h-5" />
-                    </button>
+                    <button 
+                    onClick={downloadPDF}
+                    className="p-2 bg-gray-800 rounded hover:bg-neo-primary hover:text-white transition-colors text-gray-300 shadow-md"
+                    title="Télécharger PDF"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
                   </div>
                   
                   <div className="prose prose-invert max-w-none">
